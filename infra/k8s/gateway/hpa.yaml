@@ -1,0 +1,27 @@
+# ==============================================================================
+# Gateway Horizontal Pod Autoscaler (HPA)
+# ==============================================================================
+# Scales gateway pods between 2 and 5 replicas based on 60% CPU utilization.
+# minReplicas=2 ensures HA and avoids deadlock with PDB (minAvailable: 1).
+# ==============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-hpa
+  namespace: app
+  labels:
+    app: gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

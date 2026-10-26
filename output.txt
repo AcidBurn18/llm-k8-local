@@ -1,0 +1,86 @@
+DevSecOps and MLOps Take Home Assessment: Question 1
+CPU-only LLM deployment on Kubernetes
+Timebox: Up to 48 hours in total. Aim for a working, reviewable implementation rather than a production-complete platform. The result is shown in a live demo. Everything runs locally on a laptop with open-source tools only: no cloud account, managed service, or paid tool is needed or allowed.
+Question: This question covers a cloud-style deployment on managed Kubernetes, run locally on Kind with no cloud account.
+Common Application Spec
+Build three application microservices and a separate LLM inference workload. You create the services, container images, Kubernetes resources, and runbook yourself. We are assessing how you build, secure, and operate the workloads. The business logic can stay simple.
+1. API gateway
+	•	Public entry point for the application.
+	•	GET /healthz
+	•	GET /api/v1/items forwards to the catalog service.
+	•	POST /api/v1/ask forwards to the assistant service.
+2. Catalog service
+	•	GET /healthz
+	•	GET /items returns a small, seeded list of items.
+	•	GET /items/{id} returns one item or a suitable not-found response.
+	•	In-memory or static data is sufficient; a database is not required.
+3. Assistant service
+	•	GET /healthz
+	•	POST /answer accepts a question and optional item ID, obtains relevant catalog context if provided, calls the LLM workload, and returns the answer.
+	•	Example request: {"question":"Summarize this item","item_id":"item-1"}
+	•	Example response: {"answer":"..."}
+4. LLM inference workload
+	•	Runs a model with fewer than 1 billion parameters, on CPU only.
+	•	Exposes an internal API used by the assistant service.
+	•	Model weights are downloaded from Hugging Face. Pin the model revision and document its source and license.
+	•	Hugging Face or any other hosted inference service must not be a runtime dependency.
+	•	Suggested model: Qwen2.5-0.5B-Instruct (0.5B parameters, instruction-tuned). You may choose another suitable model and inference runtime, and you must document its license.
+Requirements common to the whole assessment
+	•	Container images for all three services and the LLM inference workload.
+	•	Model weights kept outside the application image, with documentation of how they are downloaded and supplied to the cluster.
+	•	Resource requests and limits, and health probes on every workload.
+	•	Sensible container and Kubernetes security settings: non-root users, dropped Linux capabilities, read-only root filesystem where practical, seccomp, and least-privilege access.
+	•	Credentials and configuration kept out of source code and images. Use Kubernetes Secrets for any sensitive values, even if the demo uses no real credentials.
+	•	An SBOM and a container image vulnerability scan report, or documentation of any tooling limitation that prevents producing them.
+	•	An end-to-end demonstration, including one request that reaches the LLM.
+Question 1: Customer Deployment (Cloud-Style, Run Locally)
+Scenario
+A customer wants the application hosted on managed Kubernetes in the cloud. For this assessment, use a local Kind cluster as the stand-in for that managed cluster. No cloud account is needed and none may be used. The environment is connected: the build and deploy flow can reach the internet to fetch public base images and the model. Show cloud-style practices: infrastructure as code with a plan and apply, environment separation, TLS and restricted exposure, autoscaling, safe rollout and rollback, and operations.
+Ground rules
+	•	Scope: Local only. No cloud account, managed service, hosted registry, or paid tool. Use open-source tools you can run on a laptop, and document the minimum CPU and memory required.
+	•	Keep it simple: Load images into Kind (or use a local registry container if you prefer). Weights come from a one-time download job into a persistent volume. Object storage and private registry setup are not required.
+	•	Priorities: If time is short, prioritise in this order: the application and images, the IaC and one-command script, exposure and security, then autoscaling, the scheduled job, and observability. Say clearly what you did not finish.
+Requirements
+	•	Infrastructure as Code: Define the cluster and its supporting resources with Terraform (for example the kind, helm, and kubernetes providers) or an equivalent tool. Use variables, show the plan, apply it, and destroy it cleanly.
+	•	Environments: Support at least two environments (for example dev and prod) from the same code using variables, separate state, and independent deploys. Show how you would add a third environment.
+	•	CI/CD script: Provide one script (shell or Makefile, or a docker compose entry point) that runs the whole flow. It must not depend on a specific CI product. Give it two modes: check (lint and static checks, unit tests, build, scan, SBOM), run on every change; and release (check plus loading images and deploying using your IaC or deploy scripts), run only for the main branch or a tagged release. Gate it on a vulnerability severity threshold of your choosing, fail with a clear message, and keep secrets out of its logs.
+	•	Image integrity: Pin base images by digest. Sign images or document how you would.
+	•	Model delivery: Download the model weights from Hugging Face with a one-time job (or init container) into a persistent volume. Do not bake weights into the image. Pin the model revision, document the source and license, and verify the checksum.
+	•	External access and restricted inbound: Expose only the gateway through an ingress controller with TLS using a self-signed certificate, and restrict inbound access to specific IP ranges. The catalog, assistant, and LLM services must remain cluster-internal.
+	•	Network and policy controls: Apply default-deny NetworkPolicies with explicit allow rules (including egress), namespaces with Pod Security Standards (restricted), and dedicated ServiceAccounts with minimal RBAC.
+	•	Secrets management: Use Kubernetes Secrets. No secrets in Git or in script logs. Briefly note how you would source them from a managed secret store in the cloud.
+	•	Scaling and availability: Configure replicas, a PodDisruptionBudget, and an HPA for at least the gateway, with rolling updates gated on readiness. Explain how you would scale the CPU-bound LLM workload.
+	•	Scheduled job: Include a scheduled workload (for example a Kubernetes CronJob), such as a daily job that re-verifies the model checksum and runs a few fixed prompts through the LLM. Add automated checks for the job to the script, document its schedule, and show how it is monitored.
+	•	Observability: Send application logs to a central place. Expose a handful of metrics or health checks (an uptime probe, latency, error rate, scheduled job status) and a way to view them, such as a dashboard. A lightweight self-hosted stack is fine. Configure at least one real alert rule (for example high error rate, failing scheduled job, or repeated deployment failure) and describe how you would wire it to an incident channel. No real paging system is needed.
+	•	Cloud portability note: In one page, map each local component to its managed-cloud equivalent (cluster, registry, secrets, ingress, storage, logging) and say what would change. This is a written note only; do not implement it.
+	•	Verification: Demonstrate live: the IaC plan and apply on the local cluster, the one-command build and deploy, the application end to end through the TLS ingress including one request that reaches the LLM, a request from a disallowed source being blocked, the HPA configuration or a scale-up, the scheduled job running, an alert rule loaded or firing, and a rollback of a bad release. Be ready to destroy and recreate the environment.
+Deliverables
+	•	Source code for all services.
+	•	Dockerfiles and build scripts.
+	•	IaC with plan, apply, and destroy instructions.
+	•	The CI/CD script (or compose file) and the Kubernetes manifests or Helm/Kustomize configuration.
+	•	Model download job and instructions with the pinned revision, checksum, and license.
+	•	A runbook with prerequisites, setup, deployment, verification, rollback, teardown, and troubleshooting steps.
+	•	SBOM and scan outputs, with the tools and image versions used.
+	•	An architecture diagram or description.
+	•	The one-page cloud portability note.
+	•	A brief summary of security and operational decisions, plus known limitations.
+	•	A README.md at the repo root covering architecture (components, environments, data flow), how to run the system, deployment steps, and prerequisites.
+	•	A short design and trade-offs section: key decisions, simplifications due to time, known limitations, and what you would do with more time.
+	•	AI_USAGE.md (or a README section) describing the AI tools used and for which parts, example prompts, what you accepted, rejected or changed, how you validated the output, and the risks you considered (security, licensing, hallucination) and how you mitigated them.
+	•	Optional extras: simple automated tests for the deployment scripts or IaC, and a rollback strategy write-up.
+Evaluation Notes
+A working, reviewable live demo takes priority over optional production features. Document your assumptions and known limitations clearly. We prefer a well-thought-through core with clear documentation over a broad but fragile solution.
+AI tools and reuse
+	•	You may use AI tools freely, as you would at work, and we are evaluating your judgement in using them, not how much you can copy-paste. You must understand every line and be able to run and explain it live.
+	•	You may reuse open-source code or templates if the licence allows it. Credit reused components and keep them clearly separate.
+	•	Do not include proprietary code or confidential information from your current or past employers.
+Discussion
+In the review you will explain your architecture and pipeline design, your trade-offs (where you invested and where you de-scoped), and how you used AI tools and verified their output. Expect what-if changes such as scaling, adding a new environment, or tightening security.
+Evaluation criteria
+	•	Architecture and design: Clear modular infrastructure, environment separation, and consideration for security, reliability, and scalability.
+	•	Automation and CI/CD: Robust script or pipeline, meaningful checks and gates, automated deployment, a clear rollback path.
+	•	Observability and operability: Coherent central logs, metrics, a working alert rule, and an incident-handling approach.
+	•	AI leverage and judgement: Transparent AI use with evidence of critical review of its output.
+	•	Code and documentation quality: Clear code, straightforward setup instructions, and honest limitations and next steps.
+RESTRICTED

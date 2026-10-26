@@ -1,0 +1,25 @@
+# ==============================================================================
+# ServiceMonitor: gateway
+# ==============================================================================
+# Instructs Prometheus Operator to scrape metrics from gateway pods.
+# Without this, PrometheusRule alerts referencing gateway metrics will never fire.
+# ==============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gateway-monitor
+  namespace: app
+  labels:
+    release: prometheus
+    app: gateway
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+  namespaceSelector:
+    matchNames:
+      - app

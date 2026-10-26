@@ -1,0 +1,30 @@
+# ==============================================================================
+# NetworkPolicy: allow-ingress-to-gateway
+# ==============================================================================
+# Allows ingress traffic originating from the NGINX Ingress Controller
+# (in the ingress-nginx namespace) to reach the API Gateway pods on port 8000.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-gateway
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8005

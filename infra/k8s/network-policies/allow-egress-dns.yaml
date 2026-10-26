@@ -1,0 +1,28 @@
+# ==============================================================================
+# NetworkPolicy: allow-egress-dns
+# ==============================================================================
+# Authorizes egress from ALL pods in the 'app' namespace to kube-dns / CoreDNS
+# located in the 'kube-system' namespace over UDP and TCP port 53.
+# Required for Kubernetes in-cluster service discovery and external DNS resolution.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

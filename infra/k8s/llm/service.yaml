@@ -1,0 +1,21 @@
+# ==============================================================================
+# LLM Inference Service (ClusterIP)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm
+  namespace: app
+  labels:
+    app: llm
+    app.kubernetes.io/name: llm
+    app.kubernetes.io/component: llm-inference
+spec:
+  type: ClusterIP
+  selector:
+    app: llm
+  ports:
+    - name: http
+      port: 8005
+      targetPort: 8005
+      protocol: TCP

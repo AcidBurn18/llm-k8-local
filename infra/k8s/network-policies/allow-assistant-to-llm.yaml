@@ -1,0 +1,49 @@
+# ==============================================================================
+# NetworkPolicy: allow-assistant-to-llm
+# ==============================================================================
+# 1. Authorizes egress from Assistant pods to LLM inference pods on port 8000.
+# 2. Authorizes ingress on LLM inference pods from Assistant pods on port 8000.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-assistant-egress-to-llm
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: assistant
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: llm
+      ports:
+        - protocol: TCP
+          port: 8005
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-llm-ingress-from-assistant
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: llm
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: assistant
+      ports:
+        - protocol: TCP
+          port: 8005

@@ -1,0 +1,26 @@
+# ==============================================================================
+# NetworkPolicy: allow-prometheus-scraping
+# ==============================================================================
+# Allows Prometheus (in monitoring namespace) to scrape metrics from
+# application pods in the app namespace. Without this, the default-deny
+# policy blocks all ingress from monitoring → app.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8005

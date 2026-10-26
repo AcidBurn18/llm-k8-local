@@ -1,0 +1,21 @@
+# ==============================================================================
+# Catalog Service (ClusterIP)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog
+  namespace: app
+  labels:
+    app: catalog
+    app.kubernetes.io/name: catalog
+    app.kubernetes.io/component: catalog
+spec:
+  type: ClusterIP
+  selector:
+    app: catalog
+  ports:
+    - name: http
+      port: 8005
+      targetPort: 8005
+      protocol: TCP

@@ -1,0 +1,117 @@
+# ==============================================================================
+# Model Health Check CronJob
+# ==============================================================================
+# Runs daily at 02:00 AM UTC (0 2 * * *).
+# 1. Verifies model checksum integrity on the PVC via download_model.py.
+# 2. Performs an end-to-end smoke test against the assistant service.
+# Adheres to Pod Security Standard 'restricted'.
+# ==============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: model-health-check
+  namespace: app
+  labels:
+    app: model-health-check
+    app.kubernetes.io/name: model-health-check
+    app.kubernetes.io/component: health-auditor
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: model-health-check
+            app.kubernetes.io/name: model-health-check
+            app.kubernetes.io/component: health-auditor
+        spec:
+          serviceAccountName: llm-sa
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: model-health-check
+              image: llm:v1
+              imagePullPolicy: Never
+              command:
+                - /bin/sh
+                - -c
+              args:
+                - |
+                  set -euo pipefail
+                  echo "[health-check] Step 1: Checking model checksum integrity..."
+                  python download_model.py
+                  echo "[health-check] Model checksum verified successfully."
+
+                  echo "[health-check] Step 2: Sending end-to-end smoke prompt to http://assistant:8005/answer..."
+                  python -c '
+                  import urllib.request, json, sys
+
+                  payload = json.dumps({"question": "Smoke test ping", "item_id": None}).encode("utf-8")
+                  req = urllib.request.Request(
+                      "http://assistant:8005/answer",
+                      data=payload,
+                      headers={"Content-Type": "application/json"}
+                  )
+
+                  try:
+                      with urllib.request.urlopen(req, timeout=120) as resp:
+                          if resp.status != 200:
+                              print(f"[health-check] Unexpected HTTP status: {resp.status}", file=sys.stderr)
+                              sys.exit(1)
+                          body = json.loads(resp.read().decode("utf-8"))
+                          if "answer" not in body or not body["answer"]:
+                              print(f"[health-check] Response missing \"answer\": {body}", file=sys.stderr)
+                              sys.exit(1)
+                          answer = body["answer"]
+                          print(f"[health-check] Smoke prompt succeeded. Answer preview: {answer[:60]}...")
+                  except Exception as e:
+                      print(f"[health-check] Smoke test failed: {e}", file=sys.stderr)
+                      sys.exit(1)
+                  '
+                  echo "[health-check] All daily health checks passed."
+              env:
+                - name: MODEL_PATH
+                  value: "/model-weights/data"
+                - name: MODEL_CHECKSUM
+                  valueFrom:
+                    secretKeyRef:
+                      name: app-secrets
+                      key: model-checksum
+                - name: HF_HOME
+                  value: "/tmp/hf"
+              volumeMounts:
+                - name: model-weights
+                  mountPath: /model-weights
+                  readOnly: true
+                - name: tmp-dir
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: model-weights
+              persistentVolumeClaim:
+                claimName: model-weights-pvc
+            - name: tmp-dir
+              emptyDir: {}

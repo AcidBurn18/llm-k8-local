@@ -1,0 +1,75 @@
+# ==============================================================================
+# NetworkPolicy: allow-gateway-to-assistant
+# ==============================================================================
+# 1. Authorizes egress from Gateway pods to Assistant pods on port 8000.
+# 2. Authorizes ingress on Assistant pods from Gateway pods (and health checker) on port 8000.
+# 3. Authorizes egress from model-health-check pods to Assistant pods on port 8000.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress-to-assistant
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: assistant
+      ports:
+        - protocol: TCP
+          port: 8005
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-assistant-ingress-from-gateway
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: assistant
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway
+        - podSelector:
+            matchLabels:
+              app: model-health-check
+      ports:
+        - protocol: TCP
+          port: 8005
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-model-health-check-egress-to-assistant
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: model-health-check
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: assistant
+      ports:
+        - protocol: TCP
+          port: 8005

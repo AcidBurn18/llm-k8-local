@@ -1,0 +1,18 @@
+# ==============================================================================
+# Gateway Pod Disruption Budget (PDB)
+# ==============================================================================
+# Ensures high availability by guaranteeing at least 1 gateway pod is available
+# during voluntary node disruptions (upgrades, draining, etc.).
+# ==============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway-pdb
+  namespace: app
+  labels:
+    app: gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gateway

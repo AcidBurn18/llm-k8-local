@@ -1,0 +1,86 @@
+# ==============================================================================
+# Catalog Service Deployment
+# ==============================================================================
+# In-memory item catalog service adhering to the Pod Security Standard
+# 'restricted' profile.
+# ==============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+  namespace: app
+  labels:
+    app: catalog
+    app.kubernetes.io/name: catalog
+    app.kubernetes.io/component: catalog
+    app.kubernetes.io/part-of: devsecops-llm-assessment
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: catalog
+  template:
+    metadata:
+      labels:
+        app: catalog
+        app.kubernetes.io/name: catalog
+        app.kubernetes.io/component: catalog
+        app.kubernetes.io/part-of: devsecops-llm-assessment
+    spec:
+      serviceAccountName: catalog-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: catalog
+          image: catalog:v1
+          imagePullPolicy: Never
+          ports:
+            - name: http
+              containerPort: 8005
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8005
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp-dir
+              mountPath: /tmp
+      volumes:
+        - name: tmp-dir
+          emptyDir: {}

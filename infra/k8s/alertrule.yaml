@@ -1,0 +1,43 @@
+# ==============================================================================
+# PrometheusRule: Application Monitoring Alerts
+# ==============================================================================
+# Deployed into the 'monitoring' namespace for Prometheus Operator / kube-prometheus-stack.
+# Alerts:
+#   1. GatewayHighErrorRate: Fires when >5% of requests in last 5m return 5xx.
+#   2. CronJobFailed: Fires immediately when any job in app namespace has failed status > 0.
+# ==============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app-alerts
+  namespace: monitoring
+  labels:
+    role: alert-rules
+    prometheus: k8s
+    release: prometheus
+    app.kubernetes.io/component: monitoring-alert-rules
+spec:
+  groups:
+    - name: devsecops-assessment.alerts
+      rules:
+        # Alert 1: Fires when >5% of requests in the last 5 minutes return 5xx
+        - alert: GatewayHighErrorRate
+          expr: (sum(rate(http_requests_total{namespace="app",job="gateway",status=~"5.."}[5m])) / sum(rate(http_requests_total{namespace="app",job="gateway"}[5m]))) * 100 > 5
+          for: 5m
+          labels:
+            severity: critical
+            namespace: app
+          annotations:
+            summary: "Gateway HTTP 5xx error rate exceeds 5%"
+            description: "Gateway service in namespace 'app' has an HTTP 5xx error rate of {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+
+        # Alert 2: Fires immediately when any job in app namespace has failed status > 0
+        - alert: CronJobFailed
+          expr: kube_job_status_failed{namespace="app"} > 0
+          for: 0m
+          labels:
+            severity: critical
+            namespace: app
+          annotations:
+            summary: "Kubernetes Job failed in app namespace"
+            description: "Job {{ $labels.job_name }} in namespace 'app' has failed with status > 0."

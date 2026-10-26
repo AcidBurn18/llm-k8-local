@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-weights-pvc
+  namespace: app
+  labels:
+    app: llm
+    app.kubernetes.io/name: llm
+    app.kubernetes.io/component: model-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

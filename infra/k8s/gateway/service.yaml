@@ -1,0 +1,21 @@
+# ==============================================================================
+# Gateway Service (ClusterIP)
+# ==============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: app
+  labels:
+    app: gateway
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/component: api-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8005
+      targetPort: 8005
+      protocol: TCP

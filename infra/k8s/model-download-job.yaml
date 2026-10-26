@@ -1,0 +1,86 @@
+# ==============================================================================
+# Model Downloader Job
+# ==============================================================================
+# One-time batch job to download and verify model weights into model-weights-pvc.
+# Useful for manual execution, pipeline pre-warming, or initial cluster setup.
+# Adheres to Pod Security Standard 'restricted'.
+# ==============================================================================
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-downloader
+  namespace: app
+  labels:
+    app: llm
+    job: model-downloader
+    app.kubernetes.io/name: model-downloader
+    app.kubernetes.io/component: model-preparation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: llm
+        job: model-downloader
+        app.kubernetes.io/name: model-downloader
+        app.kubernetes.io/component: model-preparation
+    spec:
+      serviceAccountName: llm-sa
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: model-downloader
+          image: llm:v1
+          imagePullPolicy: Never
+          command:
+            - python
+            - download_model.py
+          env:
+            - name: MODEL_PATH
+              value: "/model-weights/data"
+            - name: MODEL_CHECKSUM
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: model-checksum
+            - name: HF_HOME
+              value: "/tmp/hf"
+            - name: TMPDIR
+              value: "/tmp"
+            - name: HOME
+              value: "/tmp"
+            - name: XDG_CACHE_HOME
+              value: "/tmp/cache"
+            - name: HF_HUB_CACHE
+              value: "/tmp/hf/hub"
+          volumeMounts:
+            - name: model-weights
+              mountPath: /model-weights
+            - name: tmp-dir
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: model-weights
+          persistentVolumeClaim:
+            claimName: model-weights-pvc
+        - name: tmp-dir
+          emptyDir: {}

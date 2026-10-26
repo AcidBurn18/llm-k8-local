@@ -1,0 +1,49 @@
+# ==============================================================================
+# NetworkPolicy: allow-gateway-to-catalog
+# ==============================================================================
+# 1. Authorizes egress from Gateway pods to Catalog pods on port 8000.
+# 2. Authorizes ingress on Catalog pods from Gateway pods on port 8000.
+# ==============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress-to-catalog
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: gateway
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: catalog
+      ports:
+        - protocol: TCP
+          port: 8005
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-catalog-ingress-from-gateway
+  namespace: app
+  labels:
+    app.kubernetes.io/component: security-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: catalog
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gateway
+      ports:
+        - protocol: TCP
+          port: 8005

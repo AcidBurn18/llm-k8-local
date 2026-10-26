@@ -1,0 +1,20 @@
+# ==============================================================================
+# Kubernetes Namespace: app
+# ==============================================================================
+# Enforces Kubernetes Pod Security Standards at the 'restricted' profile level.
+# This ensures all pods in this namespace must adhere to strict hardening:
+# non-root execution, dropped Linux capabilities, read-only root filesystems,
+# and runtime default seccomp profiles.
+# ==============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app
+  labels:
+    name: app
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest

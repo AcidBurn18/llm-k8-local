@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfvars
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform.lock.hcl
+crash.log
+
+# Model weights — never commit to git (too large + not our IP)
+model-weights/
+model-weightss/
+*/~/
+*.safetensors
+*.bin
+*.gguf
+
+# TLS certs (generated locally)
+*.pem
+*.key
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
