@@ -64,6 +64,7 @@ This still runs Trivy and writes reports; it only allows vulnerability findings 
 - [Architecture](docs/architecture.md) — components and request flow
 - [Design decisions and trade-offs](docs/decisions-and-assumptions.md)
 - [Security decisions](docs/security-decisions.md)
+- [Known limitations and production readiness roadmap](docs/known-limitations-and-production-roadmap.md)
 - [Cloud portability note](docs/cloud-portability.md)
 - [Model delivery](model/README.md)
 - [SBOM and vulnerability scan files](docs/sbom-and-scans/README.md)
@@ -106,6 +107,8 @@ For the provider lifecycle, kubeconfig contexts, destroy behavior, and the `kind
 See [design and trade-offs](docs/decisions-and-assumptions.md) and [security decisions](docs/security-decisions.md).
 
 ## Known Limitations
+
+For the detailed gap-by-gap status and recommended implementation sequence, see the [known limitations and production readiness roadmap](docs/known-limitations-and-production-roadmap.md).
 
 - `make release` configures the Ingress for TLS, but it does not create the referenced `tls-secret`; the local mkcert setup must be completed separately. The smoke test uses `curl -k`, so it checks HTTPS routing but not browser trust of the certificate.
 - The Terraform roots and state are separate for `dev` and `prod`. Only `dev` was previously deployed and tested;
