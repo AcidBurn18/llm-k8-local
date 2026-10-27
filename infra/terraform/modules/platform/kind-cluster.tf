@@ -6,7 +6,7 @@
 # 1. Port Forwarding:
 #    Kind runs Kubernetes nodes inside Docker containers. To allow host traffic
 #    (e.g., curl from macOS/Linux host) to reach the NGINX Ingress controller,
-#    we bind host ports 80 and 443 directly to the control-plane container.
+#    environment-specific host ports to the control-plane container.
 # 2. Ingress Compatibility:
 #    Combined with `controller.hostNetwork = true` in `helm-ingress.tf`, this
 #    permits ingress traffic to hit `http://localhost` and `https://localhost`
@@ -30,13 +30,15 @@ resource "kind_cluster" "main" {
 
       extra_port_mappings {
         container_port = 80
-        host_port      = 80
+        host_port      = var.http_host_port
+        listen_address = "127.0.0.1"
         protocol       = "TCP"
       }
 
       extra_port_mappings {
         container_port = 443
-        host_port      = 443
+        host_port      = var.https_host_port
+        listen_address = "127.0.0.1"
         protocol       = "TCP"
       }
     }

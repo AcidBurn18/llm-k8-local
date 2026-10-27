@@ -14,7 +14,7 @@ metadata:
   labels:
     role: alert-rules
     prometheus: k8s
-    release: prometheus
+    release: monitoring
     app.kubernetes.io/component: monitoring-alert-rules
 spec:
   groups:

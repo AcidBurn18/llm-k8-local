@@ -1,0 +1,20 @@
+# Cloud portability note
+
+This assessment runs locally on Kind. The table below maps the current local choices to likely managed-cloud services and describes the changes I would make. This is a design note; no cloud account or managed service was used.
+
+| Local component | Purpose in this project | Possible managed equivalent | Main change |
+|---|---|---|---|
+| Kind cluster and Terraform local state | Local Kubernetes cluster and infrastructure lifecycle | GKE, EKS, or AKS; remote Terraform state in GCS, S3, or Azure Blob with locking | Replace the Kind provider with the cloud provider and add network and identity resources. The `dev` and `prod` roots currently have separate local state; configure a remote backend and locking before team use. |
+| Local images loaded into Kind | Runs `gateway:v1`, `catalog:v1`, `assistant:v1`, and `llm:v1` | Artifact Registry, ECR, or Azure Container Registry | Push each built and scanned image to a private registry, use immutable digests in manifests, and configure workload identity or pull credentials. |
+| NGINX Ingress and mkcert TLS | Local HTTPS entry point, with only the gateway routed externally | Cloud load balancer / Gateway API and managed certificates, or cert-manager | Choose the cloud ingress implementation, provision a DNS name and certificate, and trust only the actual load balancer or proxy addresses for forwarded client IPs. The local `tls-secret` currently needs to be created manually. |
+| Kubernetes Secret | Supplies model checksum and demo app configuration | AWS Secrets Manager, Google Secret Manager, Azure Key Vault, or Vault | Use workload identity and an External Secrets integration or CSI driver. Do not store real credentials in a checked-in manifest or Terraform variable. |
+| PVC on Kind node storage | Holds the model weights outside the image | Cloud block/file storage, or object storage for model artifacts | Pick a `StorageClass` and access mode based on the serving topology. For larger models, download a versioned artifact from object storage or a controlled model registry into a cache volume. |
+| `kubectl logs` | Reads container logs for troubleshooting | Cloud Logging, CloudWatch, or Azure Monitor Logs | Run a supported log collector or managed agent, add retention and access policies, and include trace/request IDs so a request can be followed across services. There is no central log backend in the current Kind setup. |
+| Prometheus, Grafana, and Metrics Server | App metrics and dashboards, resource metrics for HPA and `kubectl top` | Managed Prometheus/Cloud Monitoring plus managed dashboards; managed Kubernetes metrics API | Keep Metrics Server or use the cloud provider's supported resource metrics integration. Send application metrics to the managed service, verify alert rules, and configure a real incident receiver. |
+| NetworkPolicy manifests | Express intended service-to-service allow rules | Cloud CNI with NetworkPolicy support or a supported policy engine | Confirm the selected CNI actually enforces policy, then test allowed and blocked paths. The local manifests were applied, but enforcement was not demonstrated in this assessment run. |
+
+## Changes to the release flow
+
+I would keep the application images and Kubernetes workloads mostly the same. I would replace Kind image loading with authenticated pushes to a private registry, use immutable image digests, add a remote Terraform backend with locking, provision cloud networking and cluster identity, and source Secrets through the cloud identity integration. Ingress annotations, storage classes, resource requests, and autoscaling settings would need review for the chosen provider. I would also add automated checks for the scheduled model job, alert delivery, and policy enforcement before calling the cloud deployment ready.
+
+The API and model inference code can remain portable because the assistant calls the LLM through an internal HTTP service and the LLM reads weights from a mounted path. The storage and model download mechanism may change, but Hugging Face or another hosted inference endpoint should not become a runtime dependency.

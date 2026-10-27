@@ -30,7 +30,7 @@ MODEL_REPO = "Qwen/Qwen2.5-0.5B-Instruct"
 #   sha256sum /model-weights/model.safetensors
 # and paste the output hash here AND in the K8s model-secrets Secret.
 # Also pin MODEL_REVISION to the exact git commit shown on the HuggingFace page.
-MODEL_REVISION = "e36e5015279de6f34684e01e917547ba2e74b5d6"  # Pinned commit hash
+MODEL_REVISION = "7ae557604adf67be50417f59c2c2f167def9a775"  # Pinned commit hash
 EXPECTED_SHA256 = os.getenv("MODEL_CHECKSUM", "")   # Set via K8s Secret
 
 DEST_DIR = os.getenv("MODEL_PATH", "/model-weights")

@@ -8,7 +8,19 @@ IMAGES       := gateway catalog assistant llm
 TAG          := v1
 ENV          ?= dev
 CLUSTER_NAME := $(ENV)
+TF_DIR       := infra/terraform/environments/$(ENV)
+ifeq ($(ENV),prod)
+INGRESS_URL ?= https://llm-app.local:8443
+else
+INGRESS_URL ?= https://llm-app.local
+endif
 VULN_SEVERITY := HIGH,CRITICAL
+ALLOW_HIGH_VULNS ?= false
+TRIVY_EXIT_CODE := 1
+
+ifeq ($(ALLOW_HIGH_VULNS),true)
+TRIVY_EXIT_CODE := 0
+endif
 
 .PHONY: help check release lint test build sbom scan load kind deploy destroy rollback verify infra
 
@@ -16,10 +28,11 @@ help:
 	@echo ""
 	@echo "Usage:"
 	@echo "  make check           Lint + test + build + SBOM + vulnerability scan"
-	@echo "  make release ENV=dev Full check then deploy to Kind cluster"
+	@echo "  make release ENV=dev Full check then deploy; type apply to approve Terraform"
+	@echo "  make release ENV=dev ALLOW_HIGH_VULNS=true Override the HIGH/CRITICAL scan gate"
 	@echo "  make destroy ENV=dev Tear down the Kind cluster and all resources"
 	@echo "  make rollback        Roll back the gateway deployment one revision"
-	@echo "  make verify          Run smoke tests against the live cluster"
+	@echo "  make verify ENV=dev|prod Run smoke tests against the selected cluster"
 	@echo ""
 
 # ── CHECK mode ─────────────────────────────────────────────────────────────────
@@ -58,16 +71,27 @@ sbom:
 	@echo "  SBOMs written to docs/sbom-and-scans/"
 
 scan:
-	@echo "→ Scanning images with trivy (fail on: $(VULN_SEVERITY))..."
+	@echo "→ Scanning images with Trivy (fail on: $(VULN_SEVERITY), exit-code=$(TRIVY_EXIT_CODE))..."
 	@mkdir -p docs/sbom-and-scans
-	@for svc in $(IMAGES); do \
+	@set -uo pipefail; \
+	scan_failed=0; \
+	for svc in $(IMAGES); do \
 		echo "  Scanning $$svc:$(TAG)..."; \
-		trivy image \
+		if trivy image \
+			--exit-code $(TRIVY_EXIT_CODE) \
 			--severity $(VULN_SEVERITY) \
 			--format table \
-			--output docs/sbom-and-scans/$$svc-trivy.txt \
-			$$svc:$(TAG) 2>/dev/null; \
-	done
+			$$svc:$(TAG) | tee docs/sbom-and-scans/$$svc-trivy.txt; then \
+			:; \
+		else \
+			echo "  Trivy reported findings or an error for $$svc:$(TAG)."; \
+			scan_failed=1; \
+		fi; \
+	done; \
+	if [[ "$$scan_failed" -ne 0 ]]; then \
+		echo "Trivy gate failed. Review docs/sbom-and-scans/*-trivy.txt."; \
+		exit 1; \
+	fi
 	@echo "  Scan reports written to docs/sbom-and-scans/"
 
 # ── RELEASE mode ───────────────────────────────────────────────────────────────
@@ -77,10 +101,17 @@ release: check infra load deploy
 	@echo "Release complete — cluster ($(CLUSTER_NAME)) updated"
 	
 infra:
-	@echo "→ Running Terraform init + apply (env=$(ENV))..."
-	cd infra/terraform && \
-		terraform init -input=false && \
-		terraform apply -var-file=environments/$(ENV).tfvars -auto-approve
+	@echo "→ Initializing Terraform (env=$(ENV))..."
+	cd $(TF_DIR) && terraform init -input=false
+	@echo "→ Showing Terraform plan (no changes will be applied yet)..."
+	cd $(TF_DIR) && terraform plan
+	@read -r -p "Type 'apply' to continue with Terraform: " confirmation; \
+	if [[ "$$confirmation" != "apply" ]]; then \
+		echo "Terraform apply cancelled."; \
+		exit 1; \
+	fi
+	@echo "→ Running Terraform apply. Terraform will ask for its final yes/no approval..."
+	cd $(TF_DIR) && terraform apply
 
 load:
 	@echo "→ Loading images into Kind cluster ($(CLUSTER_NAME))..."
@@ -93,6 +124,9 @@ load:
 deploy:
 	@echo "→ Applying Kubernetes manifests..."
 	kubectl apply -f infra/k8s/ -R --context kind-$(CLUSTER_NAME)
+	@echo "→ Waiting for Kubernetes resource metrics (required by the HPA)..."
+	kubectl rollout status deployment/metrics-server -n kube-system --timeout=120s --context kind-$(CLUSTER_NAME)
+	kubectl wait --for=condition=Available apiservice/v1beta1.metrics.k8s.io --timeout=120s --context kind-$(CLUSTER_NAME)
 	@echo "→ Restarting deployments to load rebuilt local images..."
 	kubectl rollout restart deployment/gateway deployment/catalog deployment/assistant deployment/llm -n app --context kind-$(CLUSTER_NAME)
 	@echo "→ Waiting for deployments to be ready..."
@@ -103,8 +137,8 @@ deploy:
 
 destroy:
 	@echo "→ Destroying environment ($(ENV))..."
-	cd infra/terraform && \
-		terraform destroy -var-file=environments/$(ENV).tfvars -auto-approve || true
+	cd $(TF_DIR) && \
+		terraform destroy -var=destroying_kind=true -auto-approve
 	@echo "✅  $(ENV) environment destroyed"
 
 rollback:
@@ -114,4 +148,4 @@ rollback:
 
 verify:
 	@echo "→ Running smoke tests..."
-	bash scripts/verify.sh $(CLUSTER_NAME)
+	bash scripts/verify.sh $(CLUSTER_NAME) $(INGRESS_URL)

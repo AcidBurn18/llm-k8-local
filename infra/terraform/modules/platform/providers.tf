@@ -40,30 +40,22 @@ terraform {
 
 provider "kind" {}
 
-# provider "helm" {
-#   kubernetes {
-#     config_path    = "~/.kube/config"
-#     config_context = "kind-${var.env_name}"
-#   }
-# }
-
-# provider "kubernetes" {
-#   config_path    = "~/.kube/config"
-#   config_context = "kind-${var.env_name}"
-# }
 provider "helm" {
   kubernetes {
-    host                   = kind_cluster.main.endpoint
-    client_certificate     = kind_cluster.main.client_certificate
-    client_key             = kind_cluster.main.client_key
-    cluster_ca_certificate = kind_cluster.main.cluster_ca_certificate
+    config_path            = var.destroying_kind ? pathexpand("~/.kube/config") : null
+    config_context         = var.destroying_kind ? "kind-${var.env_name}" : null
+    host                   = var.destroying_kind ? null : kind_cluster.main.endpoint
+    client_certificate     = var.destroying_kind ? null : kind_cluster.main.client_certificate
+    client_key             = var.destroying_kind ? null : kind_cluster.main.client_key
+    cluster_ca_certificate = var.destroying_kind ? null : kind_cluster.main.cluster_ca_certificate
   }
 }
 
-# Kubernetes provider targets the cluster using dynamic outputs from the Kind resource
 provider "kubernetes" {
-  host                   = kind_cluster.main.endpoint
-  client_certificate     = kind_cluster.main.client_certificate
-  client_key             = kind_cluster.main.client_key
-  cluster_ca_certificate = kind_cluster.main.cluster_ca_certificate
+  config_path            = var.destroying_kind ? pathexpand("~/.kube/config") : null
+  config_context         = var.destroying_kind ? "kind-${var.env_name}" : null
+  host                   = var.destroying_kind ? null : kind_cluster.main.endpoint
+  client_certificate     = var.destroying_kind ? null : kind_cluster.main.client_certificate
+  client_key             = var.destroying_kind ? null : kind_cluster.main.client_key
+  cluster_ca_certificate = var.destroying_kind ? null : kind_cluster.main.cluster_ca_certificate
 }

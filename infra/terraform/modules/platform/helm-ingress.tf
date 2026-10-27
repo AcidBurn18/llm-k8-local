@@ -39,5 +39,23 @@ resource "helm_release" "ingress_nginx" {
     value = "NodePort"
   }
 
+  # Kind's host port mapping reaches NGINX through this Docker bridge gateway.
+  # Trust forwarded client IPs only from that exact address; the Kind host ports
+  # are bound to localhost in kind-cluster.tf.
+  set {
+    name  = "controller.config.enable-real-ip"
+    value = "true"
+  }
+
+  set {
+    name  = "controller.config.use-forwarded-headers"
+    value = "true"
+  }
+
+  set {
+    name  = "controller.config.proxy-real-ip-cidr"
+    value = var.kind_ingress_trusted_proxy_cidr
+  }
+
   depends_on = [kind_cluster.main]
 }

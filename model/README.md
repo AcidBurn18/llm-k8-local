@@ -1,54 +1,43 @@
-# Model Information
+# Model delivery
 
-## Model
+## Model identity
 
 | Field | Value |
-|-------|-------|
-| **Name** | Qwen2.5-0.5B-Instruct |
-| **Publisher** | Alibaba Cloud (Qwen team) |
-| **HuggingFace Repo** | https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct |
-| **Parameters** | 0.5 billion |
-| **License** | Apache 2.0 |
-| **Revision (pinned)** | `main` — TODO: replace with exact commit hash after first download |
-| **Weights format** | SafeTensors |
+|---|---|
+| Model | Qwen2.5-0.5B-Instruct |
+| Publisher | Qwen team, Alibaba Cloud |
+| Hugging Face repository at pinned revision | [Qwen/Qwen2.5-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/tree/7ae557604adf67be50417f59c2c2f167def9a775) |
+| Revision used by the downloader | `7ae557604adf67be50417f59c2c2f167def9a775` |
+| License | Apache-2.0 ([license file at the pinned revision](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/7ae557604adf67be50417f59c2c2f167def9a775/LICENSE)) |
+| Weights format | SafeTensors |
+| Expected `model.safetensors` SHA-256 | `fdf756fa7fcbe7404d5c60e26bff1a0c8b8aa1f72ced49e7dd0210fe288fb7fe` |
 
-## Why This Model
+The repository, pinned revision, and expected hash are configured in `services/llm/download_model.py` and `infra/k8s/secrets/app-secrets.yaml`. The Secret manifest contains a model checksum and a demo placeholder API key; it does not contain the model weights. Do not put a real credential in Git.
 
-- Under 1B parameters as required by the spec
-- Instruction-tuned — responds well to Q&A prompts without fine-tuning
-- Apache 2.0 license allows use in this assessment
-- Small enough to load on a MacBook CPU in ~30 seconds
+## How the weights reach the pod
 
-## How Weights Are Delivered
+The image contains the downloader and inference code, but not the model weights. The PVC `model-weights-pvc` is mounted at `/model-weights`; the model file is stored at `/model-weights/data/model.safetensors`.
 
-1. The `services/llm/download_model.py` script downloads weights from HuggingFace Hub using `snapshot_download()`.
-2. This script runs inside a **Kubernetes Job** (`infra/k8s/model-download-job.yaml`) before the LLM service starts.
-3. Weights are stored in a **PersistentVolumeClaim** (`model-weights-pvc`) — they survive pod restarts.
-4. The LLM Deployment mounts the same PVC at `/model-weights`.
-5. Model weights are **never baked into the container image**.
+The codebase currently has two ways that invoke the same downloader:
 
-## Checksum Verification
+1. `infra/k8s/model-download-job.yaml` defines a `model-downloader` Job to populate and verify the PVC.
+2. `infra/k8s/llm/deployment.yaml` has a `model-downloader` init container, which checks or downloads the weights before the LLM container starts.
 
-After the first download, run:
+The CronJob at `infra/k8s/cronjob.yaml` runs daily at 02:00 UTC. It verifies the existing model checksum and sends a smoke prompt to the assistant. The LLM inference container loads from the PVC at runtime; Hugging Face is not called during inference. The release does not automatically wait for or run the daily CronJob. Also, the Job and init-container are redundant paths that should be consolidated so ownership of first download is unambiguous.
 
-```bash
-# Inside the model-downloader pod after job completes
-kubectl exec -n app job/model-downloader -- sha256sum /model-weights/model.safetensors
-```
+## Checksum behavior
 
-Store the output hash as a Kubernetes Secret:
+`download_model.py` downloads the pinned repository revision when the weights file is absent. If a file already exists, the script hashes it and exits with an error if it does not match `MODEL_CHECKSUM`. After a new download, it performs the same SHA-256 comparison. The expected hash is supplied through the `app-secrets` Kubernetes Secret. In the recorded dev release, the initial model Job completed and the LLM pod became ready.
+
+To inspect the stored weights in a running LLM pod:
 
 ```bash
-kubectl create secret generic app-secrets \
-  --from-literal=model-checksum=<SHA256_HASH> \
-  -n app
+kubectl exec -n app deployment/llm --context kind-dev -- \
+  sha256sum /model-weights/data/model.safetensors
 ```
 
-The checksum is verified:
-- After every download (in `download_model.py`)
-- Daily by the CronJob (`infra/k8s/cronjob.yaml`)
+The resulting hash should match the expected SHA-256 above. This command reads the file; it does not update the Secret. Updating a checksum requires deliberate review of the pinned model revision and the downloaded artifact.
 
-## HuggingFace as Runtime Dependency
+## License and runtime considerations
 
-HuggingFace is **only used at model download time** (once, via the Job).  
-At runtime the LLM service loads weights **directly from the local PersistentVolume** — no network call to HuggingFace is made during inference. The cluster can operate fully air-gapped after the initial download.
+The model card identifies the model as Apache-2.0 licensed. Keep the model source and license with any redistributed copy, and review the repository's license and usage terms before broader distribution. The local demonstration downloads weights from Hugging Face during setup, so initial deployment needs internet access. Inference uses the local PVC and has no hosted inference API dependency. CPU inference is intentionally small-scale and can be slow on a laptop.

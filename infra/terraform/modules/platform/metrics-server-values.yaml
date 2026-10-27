@@ -1,0 +1,5 @@
+# Kind kubelet certificates are not signed by a CA Metrics Server trusts.
+# This is for the local Kind cluster only; production clusters should validate
+# kubelet certificates instead of disabling verification.
+args:
+  - --kubelet-insecure-tls

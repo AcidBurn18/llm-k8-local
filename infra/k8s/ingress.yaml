@@ -1,16 +1,11 @@
-# ==============================================================================
-# Ingress: gateway-ingress
-# ==============================================================================
-# Routes external traffic arriving on llm-app.local to the gateway service.
-# Uses NGINX ingress controller with IP whitelist restriction and TLS termination.
-# ==============================================================================
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: gateway-ingress
   namespace: app
   annotations:
-    nginx.ingress.kubernetes.io/whitelist-source-range: "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "127.0.0.1/32,10.244.0.0/16"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "180"
 spec:
